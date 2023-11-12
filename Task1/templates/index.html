@@ -9,9 +9,10 @@
     <h1>S3 Image Uploader</h1>
 
     <div>
-        <h2>Uploaded Image</h2>
-        <img src="{{ uploaded_image }}" alt="Uploaded Image">
-        <p>Uploaded on: {{ upload_date }}</p>
+        <h2>Uploaded Images</h2>
+        {% for image in uploaded_images %}
+            <img src="{{ image }}" alt="Uploaded Image">
+        {% endfor %}
     </div>
 
     <div>
