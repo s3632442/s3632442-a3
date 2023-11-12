@@ -148,10 +148,10 @@ def convert_utc_to_local(utc_string):
         print('UTC String:', utc_string)
         print('Local Date:', local_date_string)
 
-        return local_date_string
+        return local_datetime
     except Exception as e:
         print(f"Error converting UTC to local: {e}")
-        return "N/A"
+        return None
     
 # New route to handle the time zone information sent from the client
 @app.route("/set_timezone", methods=["POST"])
