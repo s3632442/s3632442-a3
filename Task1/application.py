@@ -1,31 +1,33 @@
 import datetime
-from flask import Flask, render_template, request
+from flask import Flask, render_template
 import boto3
-import requests
 from botocore.exceptions import NoCredentialsError
 
 app = Flask(__name__)
 
-def does_object_exist(approved_images_bucket_name, object_key):
+def list_objects_in_bucket(bucket_name):
     # Create an S3 client
     s3 = boto3.client('s3')
 
-    # Check if the object (image) already exists in the S3 bucket
+    # List objects in the S3 bucket
     try:
-        s3.head_object(Bucket=approved_images_bucket_name, Key=object_key)
-        return True
+        response = s3.list_objects(Bucket=bucket_name)
+        objects = response.get('Contents', [])
+        return objects
     except Exception as e:
-        return False
+        print(f"Error listing objects in S3 bucket: {e}")
+        return []
 
-def create_s3_bucket_and_upload_image(approved_images_bucket_name, image_url):
+def create_s3_bucket_and_upload_image(bucket_name, image_url):
     # Create an S3 client
     s3 = boto3.client('s3')
 
-    # Create an S3 bucket if it doesn't exist
-    if not does_object_exist(approved_images_bucket_name, ""):
+    # Check if the bucket already exists
+    buckets = s3.list_buckets()['Buckets']
+    if not any(bucket['Name'] == bucket_name for bucket in buckets):
         try:
-            s3.create_bucket(Bucket=approved_images_bucket_name)
-            print(f"S3 bucket '{approved_images_bucket_name}' created successfully.")
+            s3.create_bucket(Bucket=bucket_name)
+            print(f"S3 bucket '{bucket_name}' created successfully.")
         except Exception as e:
             print(f"Error creating S3 bucket: {e}")
 
@@ -35,17 +37,18 @@ def create_s3_bucket_and_upload_image(approved_images_bucket_name, image_url):
 
     # Upload the image to the S3 bucket
     try:
-        response = requests.get(image_url)
-        if response.status_code == 200:
-            s3.put_object(Body=response.content, Bucket=approved_images_bucket_name, Key=object_key)
-            print(f"Image uploaded to S3 bucket '{approved_images_bucket_name}' with key '{object_key}'.")
-            return object_key  # Return the generated object key
-        else:
-            print(f"Failed to download the image from {image_url}. Status code: {response.status_code}")
+        with open("tmp_image.png", 'wb') as f:
+            f.write(requests.get(image_url).content)
+        s3.upload_file("tmp_image.png", bucket_name, object_key)
+        print(f"Image uploaded to S3 bucket '{bucket_name}' with key '{object_key}'.")
+        return object_key  # Return the generated object key
     except NoCredentialsError:
         print("Credentials not available. Unable to upload the image to S3.")
     except Exception as e:
         print(f"Error uploading image to S3: {e}")
+    finally:
+        # Remove the temporary file
+        os.remove("tmp_image.png")
 
 @app.route("/")
 def index():
@@ -55,8 +58,11 @@ def index():
     # Call the function to create the S3 bucket and upload the image, and get the generated object key
     object_key = create_s3_bucket_and_upload_image("approved-cars-3632442", "https://www.linearity.io/blog/content/images/2023/06/how-to-create-a-car-NewBlogCover.png")
 
+    # List all objects in the S3 bucket
+    objects = list_objects_in_bucket("approved-cars-3632442")
+
     # Render the HTML template and pass variables to it
-    return render_template("index.html", uploaded_image=f"https://approved-cars-3632442.s3.amazonaws.com/{object_key}", upload_date=upload_date)
+    return render_template("index.html", uploaded_images=objects)
 
 @app.route("/upload", methods=["POST"])
 def upload():
