@@ -323,7 +323,7 @@ def delete_resources():
     for table_name in dynamodb_table_names:
         delete_dynamodb_table(table_name)
 
-#delete_resources()
+delete_resources()
 create_resources()
 
 
