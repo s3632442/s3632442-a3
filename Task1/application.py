@@ -125,7 +125,6 @@ def fetch_data_from_table(table_name):
         print(f"Error fetching data from '{table_name}' table: {e}")
         return []
 
-# Update your convert_utc_to_local function to use the browser's time zone
 def convert_utc_to_local(utc_string):
     try:
         # Extract the timestamp from the S3 object key (assuming format 'image_YYYYMMDDHHMMSS%f.png')
@@ -141,10 +140,12 @@ def convert_utc_to_local(utc_string):
 
         local_datetime = utc_datetime.astimezone(local_timezone)
 
-        return local_datetime
+        # Return the string representation of the local date
+        return local_datetime.strftime('%Y-%m-%d %H:%M:%S')
     except Exception as e:
         print(f"Error converting UTC to local: {e}")
-        return None
+        return 'N/A'
+
     
 # New route to handle the time zone information sent from the client
 @app.route("/set_timezone", methods=["POST"])
