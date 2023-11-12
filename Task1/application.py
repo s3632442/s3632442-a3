@@ -134,19 +134,12 @@ def convert_utc_to_local(utc_string):
         # Parse the timestamp string to a datetime object
         utc_datetime = datetime.strptime(timestamp_str, '%Y%m%d%H%M%S%f')
 
-        # Assuming the UTC datetime is in the 'UTC' timezone
-        utc_timezone = timezone('UTC')
-        utc_datetime = utc_timezone.localize(utc_datetime)
-
         # Convert to the local browser time zone
-        local_timezone = timezone(browser_time_zone) if browser_time_zone else timezone('UTC')
+        local_timezone = timezone('UTC')  # Set the default to UTC
+        if browser_time_zone:
+            local_timezone = timezone(browser_time_zone)
+
         local_datetime = utc_datetime.astimezone(local_timezone)
-
-        # Format the local datetime as a string
-        local_date_string = local_datetime.strftime('%Y-%m-%d %H:%M:%S')
-
-        print('UTC String:', utc_string)
-        print('Local Date:', local_date_string)
 
         return local_datetime
     except Exception as e:
