@@ -145,6 +145,9 @@ def convert_utc_to_local(utc_string):
         # Format the local datetime as a string
         local_date_string = local_datetime.strftime('%Y-%m-%d %H:%M:%S')
 
+        print('UTC String:', utc_string)
+        print('Local Date:', local_date_string)
+
         return local_date_string
     except Exception as e:
         print(f"Error converting UTC to local: {e}")
@@ -402,16 +405,18 @@ def list_objects_in_bucket(bucket_name, table_name):
                         image_details.append(image_detail)
                 else:
                     print("Warning: 'Key' not found in object.")
+                    print('Image Details:', image_details)
 
         return image_details
+
     except Exception as e:
         print(f"Error listing objects in S3 bucket: {e}")
         return []
 
 
 
-#delete_resources()
-#create_resources()
+delete_resources()
+create_resources()
 
 
 if __name__ == "__main__":

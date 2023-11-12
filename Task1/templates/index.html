@@ -35,7 +35,7 @@
             <p>Username: {{ image.username }}</p>
             <p>Filename: {{ image.image_filename }}</p>
             <p>Image URL: {{ image.image_url }}</p>
-            <p>Local Date: {{ image.local_date }}</p>
+            <p>Local Date: {{ image.local_date | datetimeformat('%Y-%m-%d %H:%M:%S') }}</p>
         {% endfor %}
     </div>
 
