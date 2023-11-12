@@ -71,8 +71,14 @@ def index():
     # List all objects in the S3 bucket
     objects = list_objects_in_bucket("approved-cars-3632442")
 
+    # Generate full URLs for each image
+    base_url = f"https://approved-cars-3632442.s3.amazonaws.com/"
+    for obj in objects:
+        obj['full_url'] = f"{base_url}{obj['Key']}"
+
     # Render the HTML template and pass variables to it
     return render_template("index.html", uploaded_images=objects)
+
 
 @app.route("/upload", methods=["POST"])
 def upload():
