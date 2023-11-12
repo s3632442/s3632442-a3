@@ -1,16 +1,15 @@
 import hashlib
-from flask import Flask, render_template
+from flask import Flask, render_template, request, jsonify
 import boto3
 import requests
 from botocore.exceptions import NoCredentialsError
 import time
-from datetime import datetime
+from datetime import datetime, timezone
 
 app = Flask(__name__)
 
-
-test_user='example_user'
-test_password='example_password'
+test_user = 'example_user'
+test_password = 'example_password'
 login_credentials_table_name = 'login-credentials'
 approved_images_table_name = 'approved-vehicles'
 approved_images_bucket_name = "approved-vehicle-images-3632442"
@@ -62,51 +61,36 @@ def does_object_exist(bucket_name, object_key):
     except Exception as e:
         return False
     
-def add_approved_vehicle_image(username, filename, image_url):
-    # Create a DynamoDB resource
+def add_approved_vehicle_image(username, filename, image_url, key):
     dynamodb = boto3.resource('dynamodb')
-
-    # Specify the table name
-    table_name = 'approved-vehicles'
+    table = dynamodb.Table('approved-vehicles')
 
     try:
-        # Get the DynamoDB table
-        table = dynamodb.Table(table_name)
-
-        # Generate a unique image_id using the current UTC time (including milliseconds)
-        current_time = datetime.utcnow()
-        image_id = f"{current_time.strftime('%Y%m%d%H%M%S%f')}_{filename}"
-
-        # Insert the item into the table
         response = table.put_item(
             Item={
-                'image_id': image_id,
+                'image_id': key,  # Use the provided key as the image_id
                 'username': username,
                 'image_filename': filename,
                 'image_url': image_url
             }
         )
-
-        print(f"Item added to '{table_name}' table: {response}")
-
+        print(f"Item added to 'approved-vehicles' table: {response}")
     except Exception as e:
-        print(f"Error adding item to '{table_name}' table: {e}")
+        print(f"Error adding item to 'approved-vehicles' table: {e}")
 
 def create_s3_bucket_and_upload_image(bucket_name, initial_image_url, test_user):
     s3 = boto3.client('s3')
 
-    # Check if the bucket exists
-    if not does_bucket_exist(bucket_name):
-        try:
-            s3.create_bucket(Bucket=bucket_name)
-            print(f"S3 bucket '{bucket_name}' created successfully.")
-        except Exception as e:
-            print(f"Error creating S3 bucket: {e}")
-            return
-
     # Generate a unique filename using the current UTC time (including milliseconds)
     current_time = datetime.utcnow()
     object_key = f"image_{current_time.strftime('%Y%m%d%H%M%S%f')}.png"
+
+    try:
+        s3.create_bucket(Bucket=bucket_name)
+        print(f"S3 bucket '{bucket_name}' created successfully.")
+    except Exception as e:
+        print(f"Error creating S3 bucket: {e}")
+        return
 
     # Check if the object (image) already exists in the S3 bucket
     if not does_object_exist(bucket_name, object_key):
@@ -119,8 +103,8 @@ def create_s3_bucket_and_upload_image(bucket_name, initial_image_url, test_user)
                 # Get the URL of the uploaded image
                 s3_url = f"https://{bucket_name}.s3.amazonaws.com/{object_key}"
 
-                # Add the approved vehicle image using the obtained URL
-                add_approved_vehicle_image(test_user, object_key, s3_url)
+                # Add the approved vehicle image using the obtained URL and key
+                add_approved_vehicle_image(test_user, object_key, s3_url, object_key)
             else:
                 print(f"Failed to download the image from {initial_image_url}. Status code: {response.status_code}")
         except NoCredentialsError:
@@ -128,34 +112,76 @@ def create_s3_bucket_and_upload_image(bucket_name, initial_image_url, test_user)
         except Exception as e:
             print(f"Error uploading image to S3: {e}")
 
+def fetch_data_from_table(table_name):
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table(table_name)
 
-
-def list_objects_in_bucket(bucket_name):
-    # Create an S3 client
-    s3 = boto3.client('s3')
-
-    # List objects in the S3 bucket
     try:
-        response = s3.list_objects(Bucket=bucket_name)
-        objects = response.get('Contents', [])
-        return objects
+        # Scan the entire table (not recommended for large tables in production)
+        response = table.scan()
+        items = response.get('Items', [])
+        return items
     except Exception as e:
-        print(f"Error listing objects in S3 bucket: {e}")
+        print(f"Error fetching data from '{table_name}' table: {e}")
         return []
+
+# Update your convert_utc_to_local function to use the browser's time zone
+def convert_utc_to_local(utc_string):
+    try:
+        # Extract the timestamp from the S3 object key (assuming format 'image_YYYYMMDDHHMMSS%f.png')
+        timestamp_str = utc_string.split('_')[1].split('.')[0]
+
+        # Parse the timestamp string to a datetime object
+        utc_datetime = datetime.strptime(timestamp_str, '%Y%m%d%H%M%S%f')
+
+        # Assuming the UTC datetime is in the 'UTC' timezone
+        utc_timezone = timezone('UTC')
+        utc_datetime = utc_timezone.localize(utc_datetime)
+
+        # Convert to the local browser time zone
+        local_timezone = timezone(browser_time_zone) if browser_time_zone else timezone('UTC')
+        local_datetime = utc_datetime.astimezone(local_timezone)
+
+        # Format the local datetime as a string
+        local_date_string = local_datetime.strftime('%Y-%m-%d %H:%M:%S')
+
+        return local_date_string
+    except Exception as e:
+        print(f"Error converting UTC to local: {e}")
+        return "N/A"
+    
+# New route to handle the time zone information sent from the client
+@app.route("/set_timezone", methods=["POST"])
+def set_timezone():
+    global browser_time_zone
+    data = request.get_json()
+    browser_time_zone = data.get('timeZone', None)
+    return jsonify({'status': 'success'})
+
+
 
 @app.route("/")
 def index():
-    
     # List all objects in the S3 bucket
-    objects = list_objects_in_bucket("approved-vehicle-images-3632442")
+    objects = list_objects_in_bucket(approved_images_bucket_name, approved_images_table_name)
 
     # Generate full URLs for each image
-    base_url = f"https://approved-vehicle-images-3632442.s3.amazonaws.com/"
+    base_url = f"https://{approved_images_bucket_name}.s3.amazonaws.com/"
     for obj in objects:
-        obj['full_url'] = f"{base_url}{obj['Key']}"
+        # Check if 'Key' is present in the object before using it
+        if 'Key' in obj:
+            obj['full_url'] = f"{base_url}{obj['Key']}"
+            obj['local_date'] = convert_utc_to_local(obj['Key'][6:-4])  # Assuming the format is 'image_YYYYMMDDHHMMSS%f.png'
+        else:
+            obj['full_url'] = "N/A"
+            obj['local_date'] = "N/A"
+
+    # Fetch debug data from tables
+    login_credentials_data = fetch_data_from_table(login_credentials_table_name)
+    approved_vehicle_images_data = fetch_data_from_table(approved_images_table_name)
 
     # Render the HTML template and pass variables to it
-    return render_template("index.html", uploaded_images=objects)
+    return render_template("index.html", uploaded_images=objects, login_credentials_data=login_credentials_data, approved_vehicle_images_data=approved_vehicle_images_data)
 
 
 @app.route("/upload", methods=["POST"])
@@ -319,8 +345,73 @@ def delete_resources():
     for table_name in dynamodb_table_names:
         delete_dynamodb_table(table_name)
 
-delete_resources()
-create_resources()
+def list_objects_in_bucket(bucket_name, table_name):
+    # Create an S3 client
+    s3 = boto3.client('s3')
+    
+    # Create a DynamoDB resource
+    dynamodb = boto3.resource('dynamodb')
+        
+    try:
+        # Get the DynamoDB table
+        table = dynamodb.Table(table_name)
+        
+        # List objects in the S3 bucket
+        response = s3.list_objects(Bucket=bucket_name)
+        objects = response.get('Contents', [])
+
+        # Create a list to store image details
+        image_details = []
+
+        # Check if there are any objects in the bucket
+        if objects:
+            # Iterate through each object in the S3 bucket
+            for obj in objects:
+                # Check if 'Key' is present in the object
+                if 'Key' in obj:
+                    # Get image details from DynamoDB table using the filename
+                    response = table.get_item(
+                        Key={
+                            'image_filename': obj['Key'],  # Include 'Key' in the DynamoDB key
+                            'username': test_user
+                        }
+                    )
+                    item = response.get('Item', None)
+
+                    if item:
+                        # Extract relevant details
+                        image_id = item.get('image_id', '')
+                        image_url = item.get('image_url', '')
+                        image_filename = item.get('image_filename', '')
+                        username = item.get('username', '')
+                        
+                        # Get the local system time and date
+                        local_date = datetime.now()
+
+                        # Create a dictionary with image details
+                        image_detail = {
+                            'image_id': image_id,
+                            'image_url': image_url,
+                            'image_filename': image_filename,
+                            'username': username,
+                            'local_date': local_date.strftime('%Y-%m-%d %H:%M'),
+                            'full_url': f"https://{bucket_name}.s3.amazonaws.com/{obj['Key']}"
+                        }
+
+                        # Append the dictionary to the list
+                        image_details.append(image_detail)
+                else:
+                    print("Warning: 'Key' not found in object.")
+
+        return image_details
+    except Exception as e:
+        print(f"Error listing objects in S3 bucket: {e}")
+        return []
+
+
+
+#delete_resources()
+#create_resources()
 
 
 if __name__ == "__main__":

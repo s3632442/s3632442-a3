@@ -8,10 +8,54 @@
 <body>
     <h1>S3 Image Uploader</h1>
 
+    <!-- Add JavaScript to get the browser time zone and send it to the server -->
+    <script>
+        // Get the browser time zone
+        const browserTimeZone = Intl.DateTimeFormat().resolvedOptions().timeZone;
+    
+        // Log the time zone information to the console (for debugging purposes)
+        console.log('Browser Time Zone:', browserTimeZone);
+    
+        // Send the time zone to the server using a fetch request
+        fetch('/set_timezone', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({ timeZone: browserTimeZone }),
+        });
+    </script>
+
     <div>
         <h2>Uploaded Images</h2>
+
         {% for image in uploaded_images %}
             <img src="{{ image.full_url }}" alt="Uploaded Image">
+            <p>Image ID: {{ image.image_id }}</p>
+            <p>Username: {{ image.username }}</p>
+            <p>Filename: {{ image.image_filename }}</p>
+            <p>Image URL: {{ image.image_url }}</p>
+            <p>Local Date: {{ image.local_date }}</p>
+        {% endfor %}
+    </div>
+
+    <!-- Add debug output for login credentials table -->
+    <div>
+        <h2>Login Credentials Table (Debug Output)</h2>
+        {% for item in login_credentials_data %}
+            <p>Username: {{ item.username }}</p>
+            <p>Password: {{ item.password }}</p>
+        {% endfor %}
+    </div>
+
+    <!-- Add debug output for approved vehicle images table -->
+    <div>
+        <h2>Approved Vehicle Images Table (Debug Output)</h2>
+        {% for item in approved_vehicle_images_data %}
+            <p>Image ID: {{ item.image_id }}</p>
+            <p>Username: {{ item.username }}</p>
+            <p>Filename: {{ item.image_filename }}</p>
+            <p>Image URL: {{ item.image_url }}</p>
         {% endfor %}
     </div>
 
@@ -19,8 +63,10 @@
         <h2>Upload New Image</h2>
         <form method="post" action="/upload" enctype="multipart/form-data">
             <input type="file" name="file">
-            <input type="submit" value="Upload">
+            <input type="submit">
         </form>
     </div>
 </body>
 </html>
+
+
