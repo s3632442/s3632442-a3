@@ -1,0 +1,25 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>S3 Image Uploader</title>
+</head>
+<body>
+    <h1>S3 Image Uploader</h1>
+
+    <div>
+        <h2>Uploaded Image</h2>
+        <img src="{{ uploaded_image }}" alt="Uploaded Image">
+        <p>Uploaded on: {{ upload_date }}</p>
+    </div>
+
+    <div>
+        <h2>Upload New Image</h2>
+        <form method="post" action="/upload" enctype="multipart/form-data">
+            <input type="file" name="file">
+            <input type="submit" value="Upload">
+        </form>
+    </div>
+</body>
+</html>
