@@ -1,3 +1,4 @@
+import uuid
 import hashlib
 from flask import Flask, render_template
 import boto3
@@ -61,7 +62,7 @@ def does_object_exist(bucket_name, object_key):
         return True
     except Exception as e:
         return False
-    
+
 def add_approved_vehicle_image(username, filename, image_url):
     # Create a DynamoDB resource
     dynamodb = boto3.resource('dynamodb')
@@ -73,9 +74,8 @@ def add_approved_vehicle_image(username, filename, image_url):
         # Get the DynamoDB table
         table = dynamodb.Table(table_name)
 
-        # Generate a unique image_id using the current UTC time (including milliseconds)
-        current_time = datetime.utcnow()
-        image_id = f"{current_time.strftime('%Y%m%d%H%M%S%f')}_{filename}"
+        # Generate a UUID as the image_id
+        image_id = str(uuid.uuid4())
 
         # Insert the item into the table
         response = table.put_item(
@@ -91,6 +91,7 @@ def add_approved_vehicle_image(username, filename, image_url):
 
     except Exception as e:
         print(f"Error adding item to '{table_name}' table: {e}")
+
 
 def create_s3_bucket_and_upload_image(bucket_name, initial_image_url, test_user):
     s3 = boto3.client('s3')
@@ -128,8 +129,6 @@ def create_s3_bucket_and_upload_image(bucket_name, initial_image_url, test_user)
         except Exception as e:
             print(f"Error uploading image to S3: {e}")
 
-
-
 def list_objects_in_bucket(bucket_name):
     # Create an S3 client
     s3 = boto3.client('s3')
@@ -138,6 +137,12 @@ def list_objects_in_bucket(bucket_name):
     try:
         response = s3.list_objects(Bucket=bucket_name)
         objects = response.get('Contents', [])
+
+        # Ensure 'image_id' and 'image_filename' are present for each object
+        for obj in objects:
+            obj['image_id'] = obj.get('image_id', '')  # Set a default value if it doesn't exist
+            obj['image_filename'] = obj.get('image_filename', '')  # Set a default value if it doesn't exist
+
         return objects
     except Exception as e:
         print(f"Error listing objects in S3 bucket: {e}")
@@ -145,7 +150,6 @@ def list_objects_in_bucket(bucket_name):
 
 @app.route("/")
 def index():
-    
     # List all objects in the S3 bucket
     objects = list_objects_in_bucket("approved-vehicle-images-3632442")
 
@@ -153,10 +157,10 @@ def index():
     base_url = f"https://approved-vehicle-images-3632442.s3.amazonaws.com/"
     for obj in objects:
         obj['full_url'] = f"{base_url}{obj['Key']}"
+        print(f"Image ID: {obj['image_id']}, Filename: {obj['image_filename']}, URL: {obj['full_url']}")
 
     # Render the HTML template and pass variables to it
     return render_template("index.html", uploaded_images=objects)
-
 
 @app.route("/upload", methods=["POST"])
 def upload():
@@ -319,7 +323,7 @@ def delete_resources():
     for table_name in dynamodb_table_names:
         delete_dynamodb_table(table_name)
 
-delete_resources()
+#delete_resources()
 create_resources()
 
 
